@@ -1,0 +1,9 @@
+{
+	"name": "Development Environment",
+	"image": "mcr.microsoft.com/devcontainers/javascript-node:1-18-bookworm",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
+	},
+
+	"postCreateCommand": "npm install -g @devcontainers/cli"
+}
