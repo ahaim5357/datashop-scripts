@@ -2,6 +2,8 @@
 
 DATASHOP_ACCESS_KEY_ID=""
 DATASHOP_SECRET_ACCESS_KEY=""
+# URL="https://pslcdatashop.web.cmu.edu"
+URL="https://pslc-qa.andrew.cmu.edu/datashop"
 
 # QA URL: https://pslc-qa.andrew.cmu.edu/datashop/
 
@@ -16,7 +18,8 @@ method="GET"
 contentMD5=""
 contentType=""
 timestamp=`TZ=GMT date "+%a, %d %b %Y %H:%M:%S %Z"`
-uripath="/datasets/1"
+# uripath="/datasets/1"
+uripath="/datasets/1142"
 # Base64#encodeBase64 when isChunked is true, adds carriage return (\r\n) after every 76 bytes
 # TODO: Remove jq requirement
 apisig=`printf "%s\n%s\n%s\n%s\n%s" "${method}" "${contentMD5}" "${contentType}" "${timestamp}" "${uripath}" | openssl dgst -binary -sha1 -hmac "${DATASHOP_SECRET_ACCESS_KEY}" | base64 | sed 's/.\{76\}/&\r/g'`
@@ -25,7 +28,7 @@ apisig=`printf "${apisig}\r\n" | jq --slurp --raw-input --raw-output @uri`
 curl --tlsv1 --tls-max 1.2 -X $method \
     -H "authorization: DATASHOP ${DATASHOP_ACCESS_KEY_ID}:${apisig}" \
     -H "date: ${timestamp}" -H "accept: text/xml" -H "user-agent: TestService/1.0.0" \
-    -H "connection: keep-alive" "https://pslcdatashop.web.cmu.edu/services${uripath}"
+    -H "connection: keep-alive" "${URL}/services${uripath}"
 
 echo "-----------------------------------"
 
@@ -65,7 +68,7 @@ curl -v --tlsv1 --tls-max 1.2 -X $method \
     -H "authorization: DATASHOP ${DATASHOP_ACCESS_KEY_ID}:${apisig}" \
     -H "date: ${timestamp}" -H "accept: text/xml" -H "accept-charset: UTF-8"\
     -H "user-agent: TestService/1.0.0" -H "connection: keep-alive" \
-    -H "content-type: application/x-www-form-urlencoded;charset=UTF-8" -d "postData=${data}" "https://pslcdatashop.web.cmu.edu/services${uripath}"
+    -H "content-type: application/x-www-form-urlencoded;charset=UTF-8" -d "postData=${data}" "${URL}/services${uripath}"
 
 
 # Unset environment variables once finished
