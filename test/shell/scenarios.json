@@ -20,6 +20,10 @@
             },
             "shell": {}
         },
-        "remoteUser": "test"
+        "remoteUser": "test",
+        "remoteEnv": {
+            "DATASHOP_ACCESS_KEY_ID": "${localEnv:DATASHOP_ACCESS_KEY_ID}",
+            "DATASHOP_SECRET_ACCESS_KEY": "${localEnv:DATASHOP_SECRET_ACCESS_KEY}"
+        }
     }
 }
