@@ -1,0 +1,16 @@
+<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<pslc_datashop_message>
+<project>
+<name>Dummy Test!</name>
+<description>Test of the system.</description>
+<tags>#Science #Learning</tags>
+<pi>bleber</pi>
+<data_provider>bleber</data_provider>
+<data_collection_type>not_specified</data_collection_type>
+<shareable_status>not_submitted</shareable_status>
+<subject_to_ds_irb>yes</subject_to_ds_irb>
+<research_mgr_notes>IGNORE THIS</research_mgr_notes>
+<needs_attention>yes</needs_attention>
+<discourse_dataset>no</discourse_dataset>
+</project>
+</pslc_datashop_message>

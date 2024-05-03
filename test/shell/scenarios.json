@@ -1,0 +1,25 @@
+{
+    "root-test": {
+        "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+        "features": {
+            "shell": {}
+        },
+        "remoteEnv": {
+            "DATASHOP_ACCESS_KEY_ID": "${localEnv:DATASHOP_ACCESS_KEY_ID}",
+            "DATASHOP_SECRET_ACCESS_KEY": "${localEnv:DATASHOP_SECRET_ACCESS_KEY}"
+        }
+    },
+    "remote-test": {
+        "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+        "features": {
+            "ghcr.io/devcontainers/features/common-utils:2": {
+                "installZsh": false,
+                "installOhMyZsh": false,
+                "installOhMyZshConfig": false,
+                "username": "test"
+            },
+            "shell": {}
+        },
+        "remoteUser": "test"
+    }
+}
