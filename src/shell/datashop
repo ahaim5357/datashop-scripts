@@ -6,7 +6,7 @@
 # Author:        Aaron Haim
 # Version:       1.0.0
 # License:       MIT
-# Dependencies:  openssl, base64, jq
+# Dependencies:  openssl, base64, jq, curl
 # Usage:         datashop [options] [method] url-path [post-data]
 # ==================================================================
 
@@ -25,6 +25,7 @@ SECRET_SET=false
 
 # HTTP Properties
 ## TODO: Add support for PUT
+## TODO: Add support for query parameters
 URL='https://pslcdatashop.web.cmu.edu'
 METHOD='GET'
 URL_PATH=''
@@ -50,7 +51,7 @@ help_message() {
         '-h | --help                 Display this message' \
         '-i | --access-key-id        Access Key Id from DataShop for authorization' \
         '-s | --secret-access-key    Secret Access Key from DataShop for authorization' \
-        '-u | --base-url             The base url to query the WebServices API from (default 'https://pslcdatashop.web.cmu.edu')' \
+        '-u | --base-url             Base url to query the WebServices API from (default 'https://pslcdatashop.web.cmu.edu')' \
         '-o | --output               Output file to write the response of the HTTP request' \
         'Parameters:' \
         "method                      HTTP method (default 'GET')" \

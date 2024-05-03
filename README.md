@@ -1,5 +1,5 @@
 # DataShop Scripts
 
-A collection of scripts that can send and handle requests to [PSLC DataShop](https://pslcdatashop.web.cmu.edu/) via their WebServices API.
+A collection of scripts that can send and handle requests to [PSLC DataShop](https://pslcdatashop.web.cmu.edu/) via their [Web Services API](https://pslcdatashop.web.cmu.edu/api/DataShop%20Public%20API-v0.41.pdf).
 
-**THESE SCRIPTS ARE WORK-IN-PROGRESS** Only proof of concepts that can connect to the API are available. They are currently being further fleshed out.
+- [Bash](./src/shell/)
