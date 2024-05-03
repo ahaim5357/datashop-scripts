@@ -9,6 +9,7 @@ on:
 jobs:
   test-scenarios:
     runs-on: ubuntu-latest
+    environment: "Datashop QA"
     continue-on-error: true
     strategy:
       matrix:
@@ -21,7 +22,6 @@ jobs:
         run: npm install -g @devcontainers/cli
       
       - name: "Generating tests for '${{ matrix.features }}' scenarios"
-        environment: "Datashop QA"
         env:
           DATASHOP_ACCESS_KEY_ID: ${{ secrets.DATASHOP_ACCESS_KEY_ID }}
           DATASHOP_SECRET_ACCESS_KEY: ${{ secrets.DATASHOP_SECRET_ACCESS_KEY }}
