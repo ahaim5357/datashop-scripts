@@ -1,0 +1,11 @@
+{
+    "name": "DataShop Web Services API Script - Shell",
+    "id": "shell",
+    "version": "1.0.0",
+    "containerEnv": {
+        "PATH": "/usr/local/datashop:${PATH}"
+    },
+    "installsAfter": [
+        "ghcr.io/devcontainers/features/common-utils"
+    ]
+}

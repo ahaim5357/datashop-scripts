@@ -1,0 +1,406 @@
+#!/usr/bin/env bash
+
+# ==================================================================
+# Title:         Datahop WebServices API Script
+# Description:   Executes a request to the DataShop WebServices API.
+# Author:        Aaron Haim
+# Version:       1.0.0
+# License:       MIT
+# Dependencies:  openssl, base64, jq
+# Usage:         datashop [options] [method] url-path [post-data]
+# ==================================================================
+
+# Script Information
+API_VERSION='1.0.0'
+
+# Exit Codes
+ERROR_ARGUMENTS=1
+ERROR_MISSING_CREDENTIALS=2
+
+# Credential Information
+ACCESS_KEY_ID="${DATASHOP_ACCESS_KEY_ID:-}"
+SECRET_ACCESS_KEY="${DATASHOP_SECRET_ACCESS_KEY-}"
+KEY_ID_SET=false
+SECRET_SET=false
+
+# HTTP Properties
+## TODO: Add support for PUT
+URL='https://pslcdatashop.web.cmu.edu'
+METHOD='GET'
+URL_PATH=''
+POST_DATA=''
+
+# Output Location
+OUTPUT_FILE=''
+
+# Public: Displays the help message.
+#
+# Displays the help message and exits.
+#
+# Examples
+#
+#     help_message
+#
+# Returns the exit code 0.
+help_message() {
+    printf '%s\n\n%s\n\n%s\n %s\n %s\n %s\n %s\n %s\n\n%s\n %s\n %s\n %s\n' \
+        'Executes a request to the DataShop WebServices API.' \
+        'Usage: datashop [options] [method] url-path [post-data]' \
+        'Options:' \
+        '-h | --help                 Display this message' \
+        '-i | --access-key-id        Access Key Id from DataShop for authorization' \
+        '-s | --secret-access-key    Secret Access Key from DataShop for authorization' \
+        '-u | --base-url             The base url to query the WebServices API from (default 'https://pslcdatashop.web.cmu.edu')' \
+        '-o | --output               Output file to write the response of the HTTP request' \
+        'Parameters:' \
+        "method                      HTTP method (default 'GET')" \
+        'url-path                    Path of the URL to query' \
+        "post-data                   File name or data to send for a 'POST' request" \
+
+
+    # Exit succesfully
+    exit
+}
+
+# Private: Reads a file for access credentials.
+#
+# Takes in a file name and reads the stored credentials in the file.
+# If the credentials match either 'DATASHOP_ACCESS_KEY_ID' or
+# 'DATASHOP_SECRET_ACCESS_KEY', the value is stored and the associated
+# set variable is marked as true. If both values are set when this file
+# finishes being read, then 'rcf_exit' will be set to 'exit', meaning that
+# all credentials have been set.
+#
+# The credentials file is formatted as 'KEY=VALUE' pairs without quotes.
+#
+# Parameters
+#
+# * $1 - The file name containing the credentials.
+#
+# Examples
+#
+#     read_credentials_file "example.txt"
+#
+# Returns the exit code 0.
+read_credentials_file() {
+    while read -r key value
+    do
+        # Set credentials if they haven't already been set
+        if [ $KEY_ID_SET = false ] && [ "$key" = "DATASHOP_ACCESS_KEY_ID" ]; then
+            ACCESS_KEY_ID="$value"
+            KEY_ID_SET=true
+        elif [ $SECRET_SET = false ] && [ "$key" = "DATASHOP_SECRET_ACCESS_KEY" ]; then
+            SECRET_ACCESS_KEY="$value"
+            SECRET_SET=true
+        fi
+    # Get all values from the file, ignoring new line and comments
+    done < <(grep -v '^$' "$1" | grep -v '^#' | sed 's/=/ /')
+
+    # If the credentials have been set, return
+    if [ $KEY_ID_SET = true ] && [ $SECRET_SET = true ]; then
+        rcf_exit="exit"
+    fi
+}
+
+# Public: Gets the DataShop credentials of this environment.
+#
+# Gets the DataShop credentials by checking their potential locations:
+# - Specified by command line arguments via '-i/--access-key-id' and '-s/--secret-access-key'
+#     - This is set outside the function, so only a check occurs
+# - Specified in the local '.env' via 'DATASHOP_ACCESS_KEY_ID' and 'DATASHOP_SECRET_ACCESS_KEY'
+# - Specified in the user '~/.datashop/credentials' via 'DATASHOP_ACCESS_KEY_ID' and 'DATASHOP_SECRET_ACCESS_KEY'
+# - Specified as environment variables via 'DATASHOP_ACCESS_KEY_ID' and 'DATASHOP_SECRET_ACCESS_KEY'
+#
+# The credential specified in the highest priority will be used. If
+# a credential is missing, then an error message will be output to 
+# the terminal along with error code '$ERROR_MISSING_CREDENTIALS'.
+#
+# Examples
+#
+#     get_credentials
+#
+# Returns the exit code '$ERROR_MISSING_CREDENTIALS' if not all
+# credentials can be found or 0 otherwise.
+get_credentials () {
+    # If the credentials have already been set, skip
+    if [ $KEY_ID_SET = true ] && [ $SECRET_SET = true ]; then
+        return
+    fi
+
+    # Check if local .env exists
+    local creds_file='.env'
+    if [ -f "$creds_file" ]; then
+        read_credentials_file "$creds_file"
+        if [ -n $rcf_exit ]; then
+            return
+        fi
+    fi
+
+    # Check if credential file exists
+    creds_file="$HOME/.datashop/credentials"
+    if [ -f "$creds_file" ]; then
+        read_credentials_file "$creds_file"
+        if [ -n $rcf_exit ]; then
+            return
+        fi
+    fi
+
+    # Check if the credentials are not empty
+    ## This would be the case if they were set by the environment variables
+    if [[ -n "$ACCESS_KEY_ID" ]]; then
+        KEY_ID_SET=true
+    fi
+    if [[ -n "$SECRET_ACCESS_KEY" ]]; then
+        SECRET_SET=true
+    fi
+
+    # If the credentials is still missing, throw an error
+    if [ $KEY_ID_SET = false ] || [ $SECRET_SET = false ]; then
+        # Get missing information
+        local missing_creds=''
+        local missing_cmd_opts=''
+        local missing_keys=''
+
+        if [ $KEY_ID_SET = false ] && [ $SECRET_SET = false ]; then
+            missing_creds='id and secret'
+            missing_cmd_opts="'-i/--access-key-id' and '-s/--secret-access-key'"
+            missing_keys="'DATASHOP_ACCESS_KEY_ID' and 'DATASHOP_SECRET_ACCESS_KEY'"
+        elif [ $KEY_ID_SET = false ]; then
+            missing_creds='id'
+            missing_cmd_opts="'-i/--access-key-id'"
+            missing_keys="'DATASHOP_ACCESS_KEY_ID'"
+        else
+            missing_creds='secret'
+            missing_cmd_opts="'-s/--secret-access-key'"
+            missing_keys="'DATASHOP_SECRET_ACCESS_KEY'"
+        fi
+
+        # Print error and exit
+        printf "%s\n- %s\n- %s\n- %s\n- %s\n" \
+            "Could not find the access key ${missing_creds}. Please provide the ${missing_creds} via:" \
+            "Using ${missing_cmd_opts} as part of the command" \
+            "Setting ${missing_keys} in the local '.env'" \
+            "Setting ${missing_keys} in '~/.datashop/credentials'" \
+            "Setting ${missing_keys} as environment variables"
+        exit $ERROR_MISSING_CREDENTIALS
+    fi
+}
+
+# $1 timestamp
+# $2 content_md5 (unused)
+# $3 content_type
+
+# Public: Gets the signature to send a request to the DataShop Web Services API.
+#
+# Gets the signature required to send a request to the DataShop Web Services
+# API. The signature is documented as specified by the Section 5.1 of
+# https://pslcdatashop.web.cmu.edu/api/DataShop%20Public%20API-v0.41.pdf.
+# The signature is made up of five parts: the HTTP method used, the MD5 hash
+# of the content (currently unused), the MIME type of the content (currently
+# unused), the current timestamp, and the path of the URL after the 'services'
+# variable. This method takes all that information, combines it into a newline
+# separated string, and generates a binary SHA1 HMAC signature using the secret
+# access key. Then, the output is encoded into Base64 before being escaped into
+# a URI safe representation. That representation is echoed outward.
+#
+# As DataShop uses a chunked method of base64, a carriage return (\r\n) is inserted
+# between every 76 characters. This is added back in after the binary value is
+# converted.
+#
+# Parameters
+#
+# * $1 (Optional) - The timestamp formatted as 'aaa, dd bbb YYYY HH:MM:SS ZZZ' via date.
+# * $2 (Optional) - The MD5 hash of the content to send.
+# * $3 (Optional) - The MIME type of the content to send.
+#
+# Examples
+#
+#     get_signature "Tue, 20 Oct 2009 15:22:52 GMT" "31c5154abd91694d51a452680b8f6b3d" "text/xml"
+#
+# Returns the exit code 0.
+get_signature () {
+    # Get timestamp, or set if not specified
+    local timestamp="$1"
+    if [ -z "$timestamp" ]; then
+        timestamp=`TZ=GMT date "+%a, %d %b %Y %H:%M:%S %Z"`
+    fi
+
+    # Get HMAC SHA1 signature encoding
+    ## DataShop uses org.apache.commons.codec.binary.Base64#encodeBase64 to convert the binary data
+    ## https://commons.apache.org/proper/commons-codec/apidocs/org/apache/commons/codec/binary/Base64.html#encodeBase64(byte%5B%5D,boolean)
+    ## DataShop sets isChunked to 'true', a carriage return (\r\n) is added every 76 characters
+    ## As base64 returns new line at the correct point, we simply add a carriage in those locations and at the end of the string
+    ## Then, everything is encoded into a uri format with 'jq'
+    local signature=`printf "%s\n%s\n%s\n%s\n%s" \
+        "$METHOD" "$2" "$3" "$1" "$URL_PATH" \
+        | openssl dgst -binary -sha1 -hmac "$SECRET_ACCESS_KEY" \
+        | base64 \
+        | sed 's/.\{76\}/&\r/g'`
+    signature=`printf "${signature}\r\n" | jq --slurp --raw-input --raw-output @uri`
+
+    # Echo signature as output
+    echo $signature
+}
+
+# Public: Executes an HTTP request to the DataShop Web Services API.
+#
+# Executes an HTTP request to the DataShop Web Services API, creating
+# the necessary signature and default header values to allow the request
+# to run successfully. The response is printed to the shell and to an
+# output file if specified. If an error occurs during the response, then
+# a formatted error string will be printed to the shell intsead. The output
+# file will remain the same. As the request will also be sucessful even if
+# and error occurs, the status code reported in the response is used as the
+# return value.
+#
+# All responses normally provide an XML file, so the specified output file
+# should also be an XML.
+#
+# Examples
+#
+#     execute_request
+#
+# Returns the exit code reported within the response of the request or
+# 0 otherwise.
+execute_request () {
+    # UNUSED by GET and POST from testing so far
+    ## TODO: Figure out where this is set
+    local content_md5=''
+    local content_type=''
+
+    # Get current time
+    local timestamp=`TZ=GMT date "+%a, %d %b %Y %H:%M:%S %Z"`
+    
+    # Get encoded signature
+    local signature=`get_signature "$timestamp" "$content_md5" "$content_type"`
+
+    # Set extra arguments for post data
+    local extra_args=''
+    if [ "$1" = 'POST' ] && [ -n "$POST_DATA" ]; then
+        local encoded_post_data=`printf "$POST_DATA" | jq --slurp --raw-input --raw-output @uri`
+        extra_args="-H \"content-type: application/x-www-form-urlencoded;charset=UTF-8\" -d \"postData=${encoded_post_data}\""
+    fi
+
+    # Run cURL request
+    ## text/xml is the only accepted output so far
+    ### TODO: Determine whether this is actually true
+    local cmd=`printf "%s %s %s %s %s" \
+        "curl --tlsv1 --tls-max 1.2 -s -X \"$METHOD\"" \
+        "-H \"user-agent: DataShopScripts-Bash/${API_VERSION}\" -H \"connection: keep-alive\"" \
+        "-H \"authorization: DATASHOP ${ACCESS_KEY_ID}:${signature}\"" \
+        "-H \"date: ${timestamp}\" -H \"accept: text/xml\" $extra_args" \
+        "${URL}/services${URL_PATH}" `
+    local output=`eval $cmd`
+
+    # Check output for status code
+    local result_info=`printf "$output" | grep '<pslc_datashop_message.\+>'`
+    local status_code=`printf "$result_info" | sed 's/.\+result_code="\([0-9-]\+\)".\+/\1/g'`
+    
+    # If successful, print the output to terminal
+    if [ $status_code -eq 0 ]; then
+        printf "${output}\n"
+    else
+        # Otherwise print error message
+        local status_message=`printf "$result_info" | sed 's/.\+result_message="\([^"]\+\)".\+/\1/g'`
+        printf "Error (${status_code}): ${status_message}\n"
+    fi
+
+    # Write output to file if specified
+    if [ -n "$OUTPUT_FILE" ]; then
+        printf "${output}\n" > $OUTPUT_FILE
+    fi
+
+    # Exit with status code
+    exit $status_code
+}
+
+# Read in all arguments
+while true; do
+    case "$1" in
+        -h | --help )
+            # Run help message
+            help_message
+            ;;
+        -i | --access-key-id )
+            # Set key id
+            ACCESS_KEY_ID="$2"
+            KEY_ID_SET=true
+            shift 2
+            ;;
+        -s | --secret-access-key )
+            # Set secret key
+            SECRET_ACCESS_KEY="$2"
+            SECRET_SET=true
+            shift 2
+            ;;
+        -u | --base-url )
+            # Set url and strip end /
+            URL=`printf "$2" | sed 's/\/$//'`
+            shift 2
+            ;;
+        -o | --output )
+            # Output file to write to
+            OUTPUT_FILE="$2"
+            shift 2
+            ;;
+        * )
+            if [ $# -eq 0 ]; then
+                # If there are no arguments, run help message
+                help_message
+            elif [ $# -eq 1 ]; then
+                # If there is only one argument,
+                ## Assume GET method and the path is provided
+
+                # Set params
+                URL_PATH=`printf "$1" | sed 's/^\/\{0,1\}/\//'`
+            elif [ "$1" = 'GET' ]; then
+                # Set GET properties
+
+                # Check for incorrect number of arguments
+                if [ $# -ne 2]; then
+                    # No url provided error message
+                    echo "Arguments missing to run GET command. Run '--help' for more information."
+                    exit $ERROR_ARGUMENTS
+                fi
+
+                # Set params
+                METHOD="$1"
+                URL_PATH=`printf "$2" | sed 's/^\/\{0,1\}/\//'`
+            elif [ "$1" = 'POST' ]; then
+                # Set POST properties
+
+                # Check for incorrect number of arguments
+                if [ $# -ne 3 ]; then
+                    # No url provided error message
+                    echo 'Arguments missing to run POST command. Run '--help' for more information.'
+                    exit $ERROR_ARGUMENTS
+                fi
+
+                # Set params
+                METHOD="$1"
+                URL_PATH=`printf "$2" | sed 's/^\/\{0,1\}/\//'`
+                if [ -f "$3" ]; then
+                    # If the argument is a file, read it in
+                    while IFS= read -r line
+                    do
+                        POST_DATA="${POST_DATA}\n${line}"
+                    done < $3
+                else
+                    # Otherwise use the argument value
+                    POST_DATA="$3"
+                fi
+            else
+                # Wrong path values
+                echo 'Too many arguments specified. Run '--help' for more information.'
+                exit $ERROR_ARGUMENTS
+            fi
+            break
+            ;;
+    esac
+done
+
+# Get credentials and set anything missing
+get_credentials
+
+# Execute HTTP request and output to terminal/file
+execute_request
