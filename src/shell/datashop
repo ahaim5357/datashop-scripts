@@ -4,18 +4,19 @@
 # Title:         Datahop WebServices API Script
 # Description:   Executes a request to the DataShop WebServices API.
 # Author:        Aaron Haim
-# Version:       1.0.0
+# Version:       1.0.1
 # License:       MIT
 # Dependencies:  openssl, base64, jq, curl
 # Usage:         datashop [options] [method] url-path [post-data]
 # ==================================================================
 
 # Script Information
-API_VERSION='1.0.0'
+API_VERSION='1.0.1'
 
 # Exit Codes
 ERROR_ARGUMENTS=1
 ERROR_MISSING_CREDENTIALS=2
+ERROR_STATUS_CODE_INVALID=3
 
 # Credential Information
 ACCESS_KEY_ID="${DATASHOP_ACCESS_KEY_ID:-}"
@@ -297,8 +298,12 @@ execute_request () {
     local result_info=`printf "$output" | grep '<pslc_datashop_message.\+>'`
     local status_code=`printf "$result_info" | sed 's/.\+result_code="\([0-9-]\+\)".\+/\1/g'`
     
-    # If successful, print the output to terminal
-    if [ $status_code -eq 0 ]; then
+    if ! [[ $status_code =~ ^-?[0-9]+$ ]]; then
+        # If the status code isn't valid, throw an error
+        printf "Error ($ERROR_STATUS_CODE_INVALID): Status code invalid when attempting to run query. Likely a parsing error.\n"
+        exit $ERROR_STATUS_CODE_INVALID
+    elif [ $status_code -eq 0 ]; then
+        # If successful, print the output to terminal
         printf "${output}\n"
     else
         # Otherwise print error message
